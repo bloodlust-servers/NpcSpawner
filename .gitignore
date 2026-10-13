@@ -1,0 +1,24 @@
+# Build output
+bin/
+obj/
+dist/
+artifacts/
+
+# Local BepInEx/Unity assemblies used for offline builds (not distributed)
+libs/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Packages / archives built locally
+*.zip
+*.nupkg
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store

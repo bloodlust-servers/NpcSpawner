@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>NpcSpawner</AssemblyName>
+    <RootNamespace>NpcSpawner</RootNamespace>
+    <Version>1.6.0</Version>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DebugType>none</DebugType>
+    <Description>Server-side V Rising mod: spawns configured NPC groups around a random online player at random times and gives configurable loot on kill.</Description>
+  </PropertyGroup>
+
+  <!--
+    Два режима сборки:
+      1) есть папка libs/ с готовыми DLL BepInEx — используем их (удобно офлайн);
+      2) папки libs/ нет — тянем пакеты из NuGet (так собирает GitHub Actions и обычные пользователи).
+  -->
+  <PropertyGroup>
+    <HasLocalLibs Condition="Exists('libs\BepInEx.Core.dll')">true</HasLocalLibs>
+    <HasLocalLibs Condition="'$(HasLocalLibs)' == ''">false</HasLocalLibs>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(HasLocalLibs)' == 'true'">
+    <Reference Include="BepInEx.Core"><HintPath>libs\BepInEx.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Unity.IL2CPP"><HintPath>libs\BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Unity.Common"><HintPath>libs\BepInEx.Unity.Common.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Preloader.Core"><HintPath>libs\BepInEx.Preloader.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>libs\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>libs\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Common"><HintPath>libs\Il2CppInterop.Common.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="MonoMod.Utils"><HintPath>libs\MonoMod.Utils.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="MonoMod.RuntimeDetour"><HintPath>libs\MonoMod.RuntimeDetour.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Mono.Cecil"><HintPath>libs\Mono.Cecil.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="VampireCommandFramework"><HintPath>libs\VampireCommandFramework.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(HasLocalLibs)' != 'true'">
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.733" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.Core" Version="6.0.0-be.733" IncludeAssets="compile" />
+    <PackageReference Include="VRising.VampireCommandFramework" Version="0.11.0" IncludeAssets="compile" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Игровые interop-сборки V Rising 1.1.x (только для компиляции) -->
+    <PackageReference Include="VRising.Unhollowed.Client" Version="1.1.9.9219901" IncludeAssets="compile" />
+
+    <!-- Конфиги по умолчанию: вшиваются в dll и создаются при первом запуске -->
+    <EmbeddedResource Include="Configs\npcs.default.json" LogicalName="NpcSpawner.npcs.default.json" />
+    <EmbeddedResource Include="Configs\loot.default.json" LogicalName="NpcSpawner.loot.default.json" />
+  </ItemGroup>
+
+</Project>
