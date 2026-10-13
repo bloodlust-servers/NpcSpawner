@@ -224,6 +224,7 @@ The package is written to `dist/`.
 
 ## Credits
 
+- [POMIDORKA] — owner
 - [BepInEx](https://github.com/BepInEx/BepInEx) — plugin loader
 - [Vampire Command Framework](https://github.com/decaprime/VampireCommandFramework) by deca — chat commands
 - [VRising.Unhollowed.Client](https://www.nuget.org/packages/VRising.Unhollowed.Client) — game assemblies for compiling
