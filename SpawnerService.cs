@@ -57,6 +57,7 @@ namespace NpcSpawner
         private static EntityQuery _userQuery;
         private static EntityQuery _prefabQuery;
         private static EntityQuery _castleFloorQuery;
+        private static EntityQuery _castleHeartQuery;
         private static bool _queriesCreated;
 
         // ------------------------------------------------------------ жизненный цикл
@@ -73,12 +74,16 @@ namespace NpcSpawner
             _castleFloorQuery = Svc.EM.CreateEntityQuery(
                 ComponentType.ReadOnly<CastleFloor>(),
                 ComponentType.ReadOnly<LocalToWorld>());
+            _castleHeartQuery = Svc.EM.CreateEntityQuery(
+                ComponentType.ReadOnly<CastleHeart>(),
+                ComponentType.ReadOnly<LocalToWorld>());
             _queriesCreated = true;
 
             ReloadCombatBuffs();
             ScheduleNext("init");
 
             Plugin.Logger.LogInfo($"[NpcSpawner] ready. groups={SpawnConfig.Groups.Count}, loot={SpawnConfig.Loot.Count}, enabled={Settings.Enabled.Value}");
+            Plugin.Logger.LogInfo($"[NpcSpawner] castle floors={_castleFloorQuery.CalculateEntityCount()}, castle hearts={_castleHeartQuery.CalculateEntityCount()}");
         }
 
         internal static void Shutdown()
@@ -90,6 +95,7 @@ namespace NpcSpawner
                     _userQuery.Dispose();
                     _prefabQuery.Dispose();
                     _castleFloorQuery.Dispose();
+                    _castleHeartQuery.Dispose();
                 }
             }
             catch { }
@@ -282,17 +288,33 @@ namespace NpcSpawner
             return false;
         }
 
-        /// <summary>Перечитать список баффов «в бою» из настроек.</summary>
+        /// <summary>
+        /// Перечитать список баффов «в бою» из настроек.
+        /// Бафф, которого нет в базе префабов, отбрасывается — иначе проверка «в бою»
+        /// могла бы срабатывать всегда и полностью блокировать спавн.
+        /// </summary>
         internal static void ReloadCombatBuffs()
         {
             _combatBuffs.Clear();
-            try
+
+            var raw = Settings.CombatBuffGuids.Value ?? string.Empty;
+            foreach (var part in raw.Split(','))
             {
-                foreach (var part in (Settings.CombatBuffGuids.Value ?? string.Empty).Split(','))
-                    if (int.TryParse(part.Trim(), out int guid))
-                        _combatBuffs.Add(guid);
+                if (!int.TryParse(part.Trim(), out int guid)) continue;
+
+                string name = Svc.PrefabName(guid);
+                if (string.IsNullOrEmpty(name))
+                {
+                    Plugin.Logger.LogWarning($"[NpcSpawner] бафф '{guid}' не найден в префабах — пропускаю его в проверке боя.");
+                    continue;
+                }
+
+                _combatBuffs.Add(guid);
+                Plugin.Logger.LogInfo($"[NpcSpawner] бафф боя: {guid} = {name}");
             }
-            catch { }
+
+            if (_combatBuffs.Count == 0)
+                Plugin.Logger.LogWarning("[NpcSpawner] список баффов боя пуст — игроки в бою пропускаться НЕ будут.");
         }
 
         /// <summary>Игроки, у которых можно спавнить (онлайн и, если включено, не в бою).</summary>
@@ -454,18 +476,24 @@ namespace NpcSpawner
         /// Замок/крыша: рядом (по горизонтали) есть плита замка — CastleFloor.
         /// Крыша в V Rising существует только над плитами замка, поэтому одна проверка закрывает оба случая.
         /// </summary>
+        /// <summary>
+        /// Замок/крыша: рядом есть плиты замка (CastleFloor) или сердце замка (CastleHeart).
+        /// Сердце — надёжный ориентир: у него точно есть координаты, поэтому оно закрывает
+        /// и высокие этажи, даже если плиты координат не имеют.
+        /// </summary>
         private static bool IsInsideCastleOrRoof(float3 pos)
         {
             if (!Settings.BlockNearCastles.Value) return false;
             if (!_queriesCreated) return false;
 
-            float r = Math.Max(1f, Settings.CastleBlockRadius.Value);
-            float r2 = r * r;
+            // 1) рядом плиты замка — закрывает и замки, и крыши на близкой высоте
+            float tileR = Math.Max(1f, Settings.CastleBlockRadius.Value);
+            float tileR2 = tileR * tileR;
 
-            var arr = _castleFloorQuery.ToEntityArray(Allocator.Temp);
+            var floors = _castleFloorQuery.ToEntityArray(Allocator.Temp);
             try
             {
-                foreach (var e in arr)
+                foreach (var e in floors)
                 {
                     float3 p;
                     try { p = Svc.EM.GetComponentData<LocalToWorld>(e).Position; }
@@ -473,13 +501,33 @@ namespace NpcSpawner
 
                     float dx = p.x - pos.x;
                     float dz = p.z - pos.z;
-                    if (dx * dx + dz * dz > r2) continue;
-                    if (Math.Abs(p.y - pos.y) > 12f) continue;   // близкая высота (этаж/крыша)
+                    if (dx * dx + dz * dz > tileR2) continue;
+                    if (Math.Abs(p.y - pos.y) > 12f) continue;
 
                     return true;
                 }
             }
-            finally { arr.Dispose(); }
+            finally { floors.Dispose(); }
+
+            // 2) рядом сердце замка — по горизонтали, без учёта высоты (любой этаж)
+            float heartR = Math.Max(4f, Settings.CastleHeartRadius.Value);
+            float heartR2 = heartR * heartR;
+
+            var hearts = _castleHeartQuery.ToEntityArray(Allocator.Temp);
+            try
+            {
+                foreach (var e in hearts)
+                {
+                    float3 p;
+                    try { p = Svc.EM.GetComponentData<LocalToWorld>(e).Position; }
+                    catch { continue; }
+
+                    float dx = p.x - pos.x;
+                    float dz = p.z - pos.z;
+                    if (dx * dx + dz * dz <= heartR2) return true;
+                }
+            }
+            finally { hearts.Dispose(); }
 
             return false;
         }
@@ -573,6 +621,80 @@ namespace NpcSpawner
             }
         }
 
+        /// <summary>
+        /// Находит группу по введённому тексту: учитывает регистр, лишние пробелы,
+        /// «сломанную» кодировку кириллицы из чата и уникальное начало названия.
+        /// </summary>
+        internal static bool TryResolveGroup(string input, out string key)
+        {
+            key = null;
+            if (string.IsNullOrWhiteSpace(input)) return false;
+
+            string needle = input.Trim();
+            string repaired = RepairMojibake(needle);
+
+            if (SpawnConfig.Groups.ContainsKey(needle)) { key = needle; return true; }
+            if (SpawnConfig.Groups.ContainsKey(repaired)) { key = repaired; return true; }
+
+            string found = null;
+            foreach (var name in GroupNames)
+            {
+                string trimmed = name.Trim();
+
+                bool match =
+                    string.Equals(trimmed, needle, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(trimmed, repaired, StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.StartsWith(needle, StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.StartsWith(repaired, StringComparison.OrdinalIgnoreCase);
+
+                if (!match) continue;
+                if (string.Equals(trimmed, needle, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(trimmed, repaired, StringComparison.OrdinalIgnoreCase))
+                {
+                    key = name;
+                    return true;
+                }
+
+                if (found != null) return false;   // неоднозначное начало — не угадываем
+                found = name;
+            }
+
+            if (found != null) { key = found; return true; }
+            return false;
+        }
+
+        /// <summary>Чинит текст, если кириллица пришла как «кракозябры» (latin1 &lt;-&gt; utf8).</summary>
+        private static string RepairMojibake(string s)
+        {
+            try
+            {
+                return System.Text.Encoding.UTF8.GetString(
+                    System.Text.Encoding.GetEncoding("ISO-8859-1").GetBytes(s));
+            }
+            catch { return s; }
+        }
+
+        /// <summary>Диагностика для команды .npcs debug.</summary>
+        internal static System.Collections.Generic.List<string> DebugSnapshot()
+        {
+            var lines = new System.Collections.Generic.List<string>();
+            if (!Svc.Ready) { lines.Add("мир ещё не готов"); return lines; }
+
+            var players = GetPlayers();
+            lines.Add($"игроков онлайн: {players.Count}; групп: {GroupNames.Count}");
+            lines.Add($"плит замка видно: {(_queriesCreated ? _castleFloorQuery.CalculateEntityCount() : 0)}; сердец замка: {(_queriesCreated ? _castleHeartQuery.CalculateEntityCount() : 0)}");
+            lines.Add($"баффов боя в списке: {_combatBuffs.Count}");
+
+            foreach (var p in players)
+            {
+                bool combat = IsInCombat(p.Character);
+                bool blocked = IsInsideCastleOrRoof(p.Position);
+                lines.Add($"{SafeUserName(p.UserEntity)}: в бою={combat}, в замке/под крышей={blocked}");
+            }
+
+            return lines;
+        }
+
         internal static bool TrySpawnForCharacter(Entity character, string groupName, out int spawned, out string error)
         {
             spawned = 0;
@@ -580,8 +702,16 @@ namespace NpcSpawner
 
             if (!Svc.Ready) { error = "мод ещё не готов (мир не загружен)"; return false; }
             if (string.IsNullOrWhiteSpace(groupName)) { error = "не указана группа"; return false; }
-            if (SpawnConfig.Groups == null || !SpawnConfig.Groups.TryGetValue(groupName, out var group))
-            { error = $"группа '{groupName}' не найдена — смотри .npcs list"; return false; }
+
+            if (!TryResolveGroup(groupName, out string groupKey))
+            {
+                Plugin.Logger.LogWarning($"[NpcSpawner] группа '{groupName}' не найдена. Есть: {string.Join(", ", GroupNames)}");
+                error = $"группа '{groupName}' не найдена — смотри .npcs list";
+                return false;
+            }
+
+            var group = SpawnConfig.Groups[groupKey];
+            groupName = groupKey;
             if (character == Entity.Null || !Svc.EM.Exists(character)) { error = "персонаж не найден"; return false; }
             if (!TryGetPosition(character, out var pos)) { error = "не удалось определить позицию игрока"; return false; }
             if (Settings.SkipPlayersInCombat.Value && IsInCombat(character)) { error = "игрок сейчас в бою — спавн запрещён"; return false; }
@@ -608,14 +738,32 @@ namespace NpcSpawner
             character = Entity.Null;
             if (string.IsNullOrWhiteSpace(name)) return false;
 
+            string needle = name.Trim();
+            string repaired = RepairMojibake(needle);
+
+            Entity prefixMatch = Entity.Null;
+            int prefixCount = 0;
+
             foreach (var p in GetPlayers())
             {
-                if (string.Equals(SafeUserName(p.UserEntity), name, StringComparison.OrdinalIgnoreCase))
+                string nick = SafeUserName(p.UserEntity);
+
+                if (string.Equals(nick, needle, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(nick, repaired, StringComparison.OrdinalIgnoreCase))
                 {
                     character = p.Character;
                     return true;
                 }
+
+                if (nick.StartsWith(needle, StringComparison.OrdinalIgnoreCase) ||
+                    nick.StartsWith(repaired, StringComparison.OrdinalIgnoreCase))
+                {
+                    prefixMatch = p.Character;
+                    prefixCount++;
+                }
             }
+
+            if (prefixCount == 1) { character = prefixMatch; return true; }
             return false;
         }
 
@@ -645,14 +793,33 @@ namespace NpcSpawner
             try
             {
                 if (userEntity == Entity.Null || !Svc.EM.Exists(userEntity)) return;
+                if (string.IsNullOrEmpty(message)) return;
+
                 var user = Svc.EM.GetComponentData<User>(userEntity);
-                FixedString512Bytes text = message;
+                string safe = Truncate(message, 480);   // сообщение чата ограничено 512 байтами
+                FixedString512Bytes text = safe;
                 ServerChatUtils.SendSystemMessageToClient(Svc.EM, user, ref text);
             }
             catch (Exception e)
             {
-                Plugin.Logger.LogDebug($"[NpcSpawner] сообщение не отправлено: {e.Message}");
+                Plugin.Logger.LogWarning($"[NpcSpawner] сообщение не отправлено: {e.Message}");
             }
+        }
+
+        /// <summary>Обрезает строку так, чтобы она точно влезла в лимит сообщения чата.</summary>
+        private static string Truncate(string s, int maxBytes)
+        {
+            try
+            {
+                if (System.Text.Encoding.UTF8.GetByteCount(s) <= maxBytes) return s;
+
+                int len = s.Length;
+                while (len > 0 && System.Text.Encoding.UTF8.GetByteCount(s.Substring(0, len)) > maxBytes)
+                    len--;
+
+                return s.Substring(0, len);
+            }
+            catch { return s; }
         }
 
         private static void Broadcast(string message)

@@ -1,6 +1,6 @@
 {
   "name": "NpcSpawner",
-  "version_number": "1.6.0",
+  "version_number": "1.7.1",
   "website_url": "https://github.com/bloodlust-servers/NpcSpawner",
   "description": "Настраиваемый рандомный спавн NPC для рандомных игроков. Только для сервера. Можно запретить спавн в замках игроков, во время боя и настроить лут за конкретных НПС.",
   "dependencies": [

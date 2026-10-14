@@ -1,6 +1,7 @@
 using System;
 using ProjectM;
 using ProjectM.Scripting;
+using Stunlock.Core;
 using Unity.Entities;
 
 namespace NpcSpawner
@@ -12,6 +13,7 @@ namespace NpcSpawner
         internal static EntityManager EM;
         internal static UnitSpawnerUpdateSystem UnitSpawner;
         internal static ServerGameManager GameManager;
+        internal static PrefabCollectionSystem Prefabs;
 
         internal static bool Ready => Server != null && Server.IsCreated;
 
@@ -23,6 +25,21 @@ namespace NpcSpawner
 
             var mapper = world.GetExistingSystemManaged<ServerScriptMapper>();
             GameManager = mapper.GetServerGameManager();
+
+            try { Prefabs = world.GetExistingSystemManaged<PrefabCollectionSystem>(); }
+            catch { Prefabs = null; }
+        }
+
+        /// <summary>Имя префаба по его id (для логов и диагностики). null — если не найден.</summary>
+        internal static string PrefabName(int guid)
+        {
+            try
+            {
+                if (Prefabs == null) return null;
+                var name = Prefabs._PrefabDataLookup[new PrefabGUID(guid)].AssetName;
+                return name.ToString();
+            }
+            catch { return null; }
         }
     }
 }

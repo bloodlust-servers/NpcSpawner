@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Reflection;
 using BepInEx;
@@ -16,7 +16,7 @@ namespace NpcSpawner
     {
         public const string PluginGuid = "agenthere.npcspawner";
         public const string PluginName = "NPC Spawner";
-        public const string PluginVersion = "1.6.0";
+        public const string PluginVersion = "1.7.1";
         public const string VcfGuid = "gg.deca.VampireCommandFramework";
 
         internal static Plugin Instance;
@@ -30,7 +30,7 @@ namespace NpcSpawner
 
             Logger.LogInfo($"[NpcSpawner] {PluginName} v{PluginVersion} loading...");
 
-            // 1) настройки — .cfg кладём ВНУТРЬ BepInEx/config/NpcSpawner/
+            // 1) настройки — файл .cfg кладём внутрь BepInEx/config/NpcSpawner/
             try
             {
                 Directory.CreateDirectory(SpawnConfig.Dir);
@@ -39,7 +39,7 @@ namespace NpcSpawner
             }
             catch (Exception e) { Logger.LogError($"[NpcSpawner] settings: {e}"); }
 
-            // 2) npcs.json / loot.json
+            // 2) конфиги npcs.json / loot.json
             try
             {
                 SpawnConfig.LoadAll();
@@ -48,7 +48,7 @@ namespace NpcSpawner
             }
             catch (Exception e) { Logger.LogError($"[NpcSpawner] config: {e}"); }
 
-            // 3) патчи
+            // 3) Harmony-патчи
             try
             {
                 Harmony = new Harmony(PluginGuid);

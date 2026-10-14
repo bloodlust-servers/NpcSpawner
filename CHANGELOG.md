@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.7.1
+
+- Fixed `.npcs list` (and other long replies) failing: the game chat is limited to **512 bytes**,
+  while VCF truncates replies by **characters**, so long lists of groups — especially with Cyrillic
+  names — blew the limit and threw an error. Long replies are now split into several chat messages
+  and truncated by bytes.
+- Every command is now wrapped in a safe handler: instead of a raw error you get a readable message
+  and the full details go to the server log.
+
+## 1.7.0
+
+- Fixed: NPCs could spawn on upper castle floors — castle blocking now also uses **castle hearts**
+  (`[Spawn] CastleHeartRadius`, default `30` m, ignores height) in addition to castle tiles.
+- Fixed: commands could fail to find the sender's character.
+- Fixed: chat messages could silently fail when a message exceeded the chat limit — messages are now
+  truncated and failures are logged as warnings.
+- Added `.npcs spawnme <group>` — explicit "spawn next to yourself" command (same as `.npcs spawn`).
+- Added `.npcs debug` — diagnostics: players, who is in combat, how many castles and groups are found.
+- Group names and player names now match even with different case, extra spaces, Cyrillic encodings
+  from chat, or a unique prefix.
+- Combat buff list is validated against the game's prefab database at startup; unknown buff ids are
+  skipped with a warning, so the "in combat" check can no longer block every spawn.
+- `docs/GUIDE-RU.md` updated for the new settings and commands.
+
 ## 1.6.0
 
 - Added `[Spawn] SkipPlayersInCombat` — NPCs no longer spawn around players who are in combat.

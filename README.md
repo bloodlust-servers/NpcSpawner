@@ -144,6 +144,7 @@ Loot is added to the killer's inventory; if the inventory is full the item is dr
 |---|---|---|
 | `BlockNearCastles` | `true` | Never spawn inside castles / under roofs |
 | `CastleBlockRadius` | `4` | Radius in metres around castle tiles where spawning is blocked |
+| `CastleHeartRadius` | `30` | Radius in metres around **castle hearts** where spawning is blocked (covers every floor) |
 | `SkipPlayersInCombat` | `true` | Never spawn around a player who is in combat |
 | `CombatBuffGuids` | `581443919,697095869` | Comma-separated buff ids that mean "in combat" |
 
@@ -177,10 +178,12 @@ Placeholders: `{0}` player name, `{1}` group name, `{2}` enemy count
 | `.npcs help` | Show the command list |
 | `.npcs list` | List all groups defined in `npcs.json` |
 | `.npcs spawn <group>` | Spawn a group next to **yourself** |
+| `.npcs spawnme <group>` | Same as `spawn` — spawn a group next to yourself |
 | `.npcs spawnfor <player> <group>` | Spawn a group next to **another player** |
 | `.npcs random` | Trigger a random spawn right now (picks a player and a group for you) |
 | `.npcs loot <npc id>` | Show the loot configured for an NPC |
 | `.npcs reload` | Re-read `npcs.json` and `loot.json` without restarting the server |
+| `.npcs debug` | Diagnostics: which players are in combat, castles found, group count |
 
 Example: `.npcs spawn night`
 
@@ -193,7 +196,7 @@ or there is no free space (castle, roof), the command reports why it failed.
 
 - **[Detailed usage guide (Russian)](docs/GUIDE-RU.md)** — installation, every config option,
   every command, how it works, and troubleshooting.
-- **[How to publish to GitHub and Thunderstore (Russian)](docs/PUBLISH-RU.md)**
+- **[How to publish and update on GitHub and Thunderstore (Russian)](docs/PUBLISH-RU.md)**
 
 ---
 
@@ -224,7 +227,6 @@ The package is written to `dist/`.
 
 ## Credits
 
-- [POMIDORKA] — owner
 - [BepInEx](https://github.com/BepInEx/BepInEx) — plugin loader
 - [Vampire Command Framework](https://github.com/decaprime/VampireCommandFramework) by deca — chat commands
 - [VRising.Unhollowed.Client](https://www.nuget.org/packages/VRising.Unhollowed.Client) — game assemblies for compiling

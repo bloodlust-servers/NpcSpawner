@@ -17,6 +17,7 @@ namespace NpcSpawner
 
         public static ConfigEntry<bool> BlockNearCastles;
         public static ConfigEntry<float> CastleBlockRadius;
+        public static ConfigEntry<float> CastleHeartRadius;
 
         public static ConfigEntry<bool> SkipPlayersInCombat;
         public static ConfigEntry<string> CombatBuffGuids;
@@ -56,6 +57,9 @@ namespace NpcSpawner
 
             CastleBlockRadius = cfg.Bind("Spawn", "CastleBlockRadius", 4f,
                 "Радиус в метрах вокруг плит замка, где спавн запрещён (при BlockNearCastles = true).");
+
+            CastleHeartRadius = cfg.Bind("Spawn", "CastleHeartRadius", 30f,
+                "Радиус в метрах вокруг СЕРДЦА замка, где спавн запрещён (любой этаж). Основная защита от спавна в замках.");
 
             SkipPlayersInCombat = cfg.Bind("Spawn", "SkipPlayersInCombat", true,
                 "Не давать спавнить НПС у игрока, который находится в бою.");
